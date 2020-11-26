@@ -49,8 +49,8 @@ SRD_LinkSet_Color(LinkArray, 'RH_SHANK', Color_2);
 SRD_LinkSet_Color(LinkArray, 'RH_ADAPTER', Color_1);
 SRD_LinkSet_Color(LinkArray, 'RH_FOOT', Color_2);
 
-InitialPosition =zeros(23,1);
-
+% InitialPosition = [0, 0, pi/2,0, 0,pi/2, 0,0,pi/2,0,0,pi/2]';
+InitialPosition = zeros(12,1);
 SRD_save(LinkArray, 'LinkArray');
 SRD_save(InitialPosition, 'InitialPosition');
 
