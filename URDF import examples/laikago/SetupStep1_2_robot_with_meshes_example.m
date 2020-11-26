@@ -32,10 +32,14 @@ SRD_LinkSet_Color(LinkArray, 'RL_thigh_shoulder', Color_1);
 SRD_LinkSet_Color(LinkArray, 'RL_thigh', Color_1);
 SRD_LinkSet_Color(LinkArray, 'RL_calf', Color_3);
 SRD_LinkSet_Color(LinkArray, 'RL_foot', Color_2);
+<<<<<<< HEAD
 % SRD_LinkSet_Color(LinkArray, 'RH_FOOT', Color_2);
 
 InitialPosition = [0, 0, pi/2,0, 0,pi/2, 0,0,pi/2,0,0,pi/2]';
+=======
+>>>>>>> fead207014e905d6ca68e8fb8aade0a777f93cfb
 
+InitialPosition = [0, 0, pi/2,0, 0,pi/2, 0,0,pi/2,0,0,pi/2]';
 SRD_save(LinkArray, 'LinkArray');
 SRD_save(InitialPosition, 'InitialPosition');
 
