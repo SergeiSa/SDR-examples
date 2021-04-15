@@ -72,10 +72,12 @@ Joint_3 = SRD_get_Joint_PivotX(...
     'DefaultJointOrientation', eye(3));
 
 
-LinkArray = [Ground; Link_1; Link_2; Link_3]; %Create array of links
+% LinkArray = [Ground; Link_1; Link_2; Link_3]; %Create array of links
+LinkArray = [Ground; Link_1; Link_2]; %Create array of links
 SRD_save(LinkArray, 'LinkArray');
 
-InitialPosition = [pi/4; -2*pi/3; 1*pi/5]; %Define initial position of the robot
+% InitialPosition = [pi/4; -2*pi/3; 1*pi/5]; %Define initial position of the robot
+InitialPosition = [pi/4; -2*pi/3]; %Define initial position of the robot
 SRD_save(InitialPosition, 'InitialPosition');
 
 Chain = SRD_Chain(LinkArray);
