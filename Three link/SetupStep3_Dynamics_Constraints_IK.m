@@ -6,7 +6,7 @@ clc;
 
 LinkArray = SRD_get('LinkArray');
 
-SymbolicEngine = SRDSymbolicEngine('LinkArray', LinkArray, 'Casadi', false);
+SymbolicEngine = SRDSymbolicEngine('LinkArray', LinkArray, 'Casadi', true);
 SymbolicEngine.InitializeLinkArray();
 
 SRD_dynamics_derive_JacobiansForLinkArray('SymbolicEngine', SymbolicEngine);
