@@ -1,0 +1,267 @@
+close all; clear; clc;
+
+tol = 10^(-5);
+
+% [0, 0, phi_1, phi_2]
+q = [0; 0; pi; 0];
+v = zeros(size(q));
+x = [q; v];
+u = 0;
+
+Handler_dynamics_generalized_coordinates_model = SRD_get('Handler_dynamics_generalized_coordinates_model');
+Handler_dynamics_Linearized_Model              = SRD_get('Handler_dynamics_Linearized_Model_c');
+Handler_Constraints_Model                      = SRD_get('Handler_Constraints_Model');
+
+
+k = Handler_Constraints_Model.dof_Constraint;
+n = Handler_dynamics_generalized_coordinates_model.dof_configuration_space_robot;
+m = Handler_dynamics_generalized_coordinates_model.dof_control;
+
+H = Handler_dynamics_generalized_coordinates_model.get_joint_space_inertia_matrix(q);
+c = Handler_dynamics_generalized_coordinates_model.get_bias_vector(q, v);
+T = Handler_dynamics_generalized_coordinates_model.get_control_map();
+
+F  = Handler_Constraints_Model.get_Jacobian(q);
+dF = Handler_Constraints_Model.get_Jacobian_derivative(q);
+
+iH = pinv(H);
+f0 = [v; iH*(T*u - c)];
+
+M = [H, -F';
+     F, zeros(k,k)];
+iM = pinv(M);
+
+A = Handler_dynamics_Linearized_Model.get_A(q, v, u, iM);
+B = Handler_dynamics_Linearized_Model.get_B(q, v,    iM);
+% A = Handler_dynamics_Linearized_Model.get_A(q, v, u, iH);
+% B = Handler_dynamics_Linearized_Model.get_B(q, v,    iH);
+g = f0 - A * x - B * u;
+
+
+C_case0 = [...
+    % 1 0 0 0 0 0 0 0;
+    % 0 1 0 0 0 0 0 0;
+    % 0 0 1 0 0 0 0 0;
+     0 0 0 1 0 0 0 0;
+    % 0 0 0 0 1 0 0 0;
+    % 0 0 0 0 0 1 0 0;
+    % 0 0 0 0 0 0 1 0;
+     0 0 0 0 0 0 0 1 ...
+    ]; 
+
+ 
+G = [zeros(k, n), F; F, dF];
+N = null(G); R = orth(G'); %E = [N, R];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%D1*dx/dt + D2*x = 0
+D1 = [eye(n), zeros(n)];
+D2 = [zeros(n), eye(n)];
+
+GG = [G, zeros(2*k, 2*n); D1, D2];
+GG = svd_suit(GG, tol);
+
+V = GG.null; V = V((2*n+1):end, :);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+temp2 = svd_suit( ( pinv(N'*A)*(N'*A) * V*pinv(V) * R), tol);
+Rae = temp2.orth;
+
+our_R = Rae; C = C_case0;
+
+E = [N, our_R];
+
+nn_1 = size(N,  2);
+nn_2 = size(our_R, 2);
+nn = nn_1+nn_2;
+mm = size(C, 1);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% IC
+radius = 0.01;
+x = radius*[0;0;randn;randn; 0;0;0;0]; 
+z    = N'*x; 
+zeta = our_R'*x; 
+xi_est = radius*randn(nn, 1); 
+Y0   = [z; xi_est]; 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% desired
+
+desired.x_desired_0    = N*randn(nn_1, 1)*10*radius + our_R*zeta;
+desired.z_desired_0    = N'*desired.x_desired_0;
+desired.zeta_desired   = zeta; 
+
+desired.M = svd_suit([N'*A*N, N'*B]);
+desired.N = desired.M.null;
+desired.zu_null = desired.N*randn(size(desired.N, 2), 1)* 10*radius;
+
+if norm( (eye(nn_1) - desired.M.self * desired.M.pinv) * N'*g ) > tol
+    warning('cannot create a node');
+end
+desired.zu_particular = -desired.M.pinv * N'*g;
+%desired.zu = desired.zu_particular + desired.zu_null;
+
+desired.map.z = [eye(nn_1),   zeros(nn_1, m)];
+desired.map.u = [zeros(m, nn_1), eye(m)];
+desired.z_particular = desired.map.z * desired.zu_particular;
+desired.Projector = (desired.map.z*desired.N) * pinv(desired.map.z*desired.N);
+desired.z_desired = desired.z_particular + desired.Projector * (desired.z_desired_0 - desired.z_particular);
+
+z_des = desired.z_desired;
+
+% z_des      = desired.zu(1:nn_1);
+% u_des_calc = desired.zu((1+nn_1):end);
+x_des = N*z_des + our_R*zeta;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% u_des and affine term
+
+if norm( (eye(nn_1) - (N'*B)*pinv(N'*B)) *(N'*A*N*z_des + N'*g) ) < tol
+    u_des = -pinv(N'*B) *(N'*A*N*z_des + N'*g);
+else
+    warning('cannot create a node');
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+Kz    = lqr(N'*A*N, N'*B, 100*eye(nn_1), 1*eye(m));
+Kzeta = pinv(N'*B) * N'*A*our_R;
+K = [Kz, Kzeta];
+
+N1 = [N, zeros(2*n, nn_2)];
+
+A1 = N1'*A*E;
+B1 = N1'*B;
+
+% A1 = [N'*A*N,            N'*A*our_R; 
+%       zeros(nn_2, nn_1), zeros(nn_2, nn_2)];
+% B1 = [N'*B; 
+%       zeros(nn_2, m)];
+
+L = lqr(A1', E'*C', 100*eye(nn), diag([100, 1]));
+L = L';
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+data = readtable('data_static.csv');
+data = table2array(data);
+
+data_time = data(:, 1);
+data_state = data(:, 2:5);
+data_phi2 = data_state(:, 2);
+data_w2   = data_state(:, 4);
+dataU     = data(:, 8);
+
+dataY = [data_phi2, data_w2];
+
+max_time = max(data_time);
+
+current_time = get_current_time(data_time);
+current_y = get_current_y(data_time, dataY);
+current_u = get_current_u(data_time, dataU);
+
+data_IMU = [data.Var9, data.Var10];
+data_obs = [data.Var11, data.Var12, data.Var13, data.Var14];
+data_state_mesurements = [data.Var9, data.Var3, data.Var10, data.Var5];
+
+
+
+% get_y = @(t) 
+
+
+
+Est_dynamics = @(t, xi) L*current_y(t) + (A1 - L*C*E)*xi - B1*current_u(t);
+Y0 = zeros(nn_1+nn_2, 1);
+
+[TOUT,YOUT] = ode45(Est_dynamics,[0 max_time], Y0);
+
+z_est       = YOUT(:, 1:nn_1);
+zeta_est    = YOUT(:, (nn_1+1):(nn_1+nn_2));
+x_est = (N*z_est' + our_R*zeta_est')';
+
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, z_est, 'LineWidth', 1.5); hold on; title('z est');
+subplot(2, 2, 2)
+if ~isempty(zeta_est)
+plot(TOUT, zeta_est, 'LineWidth', 1.5); hold on; title('zeta est');
+end
+subplot(2, 2, 3)
+plot(TOUT, x_est, 'LineWidth', 1.5); hold on; title('x est');
+drawnow
+
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 3:4), 'LineWidth', 1.5); hold on; title('q1, q2 est');
+subplot(2, 2, 2)
+plot(data_time, data_state_mesurements(:, 1:2), 'LineWidth', 1.5); hold on; title('q1, q2 inac mes');
+subplot(2, 2, 3)
+plot(data_time, data_obs(:, [1, 2]), 'LineWidth', 1.5); hold on; title('q1, q2 inac obs');
+drawnow
+
+
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 7:8), 'LineWidth', 1.5); hold on; title('v1, v2 est');
+subplot(2, 2, 2)
+plot(data_time, data_state_mesurements(:, 3:4), 'LineWidth', 1.5); hold on; title('v1, v2 inac mes');
+subplot(2, 2, 3)
+plot(data_time, data_obs(:, [3, 4]), 'LineWidth', 1.5); hold on; title('v1, v2 inac obs');
+drawnow
+
+
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 3), 'LineWidth', 1.5); 
+hold on; title('q1');
+plot(data_time, data_obs(:, 1), '--', 'LineWidth', 1.5);
+legend('est', 'obs')
+drawnow
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function current_time = get_current_time(data_time)
+current_time = @ct;
+    function time = ct(t)
+        [~, index] = min(abs(data_time - t));
+        time = data_time(index);
+    end
+end
+function current_y = get_current_y(data_time, dataY)
+current_y = @cy;
+    function Y = cy(t)
+        [~, index] = min(abs(data_time - t));
+        Y = reshape(dataY(index, :), [], 1);
+    end
+end
+function current_u = get_current_u(data_time, dataU)
+current_u = @cu;
+    function U = cu(t)
+        [~, index] = min(abs(data_time - t));
+        U = dataU(index, :);
+    end
+end

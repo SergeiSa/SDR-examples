@@ -73,11 +73,14 @@ for i = 1:Count
     mm = size(C, 1);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    F = Parser.Results.Handler_Constraints_Model.get_Jacobian(q);
-    dFdq = Parser.Results.Handler_Constraints_Model.get_Jacobian_derivative(q, v);
-    
-    G = [zeros(k, n/2), F; F, dFdq];
-    N = null(G);
+    desired.M = svd_suit([N'*A*N, N'*B]);
+    desired.N = desired.M.null;
+    desired.map.z = [eye(nn_1),   zeros(nn_1, m)];
+    desired.map.u = [zeros(m, nn_1), eye(m)];
+    desired.z_particular = desired.map.z * desired.M.pinv * N'*g;
+    desired.Projector = (desired.map.z*desired.N) * pinv(desired.map.z*desired.N);
+    desired.z_desired = desired.z_particular + desired.Projector * (desired.z_desired_0 - desired.z_particular);
+
     
     G_table(:, :, i) = G;
     N_table(:, :, i) = N;

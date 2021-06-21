@@ -3,7 +3,7 @@ close all; clear; clc;
 tol = 10^(-5);
 
 % [0, 0, phi_1, phi_2]
-q = [0; 0; 0; 0];
+q = [0; 0; pi; 0];
 v = zeros(size(q));
 x = [q; v];
 u = 0;
@@ -29,7 +29,7 @@ f0 = [v; iH*(T*u - c)];
 
 M = [H, -F';
      F, zeros(k,k)];
-iM = pinv(M)
+iM = pinv(M);
 
 A = Handler_dynamics_Linearized_Model.get_A(q, v, u, iM);
 B = Handler_dynamics_Linearized_Model.get_B(q, v,    iM);
@@ -45,41 +45,10 @@ C_case0 = [...
      0 0 0 1 0 0 0 0;
     % 0 0 0 0 1 0 0 0;
     % 0 0 0 0 0 1 0 0;
-    % 0 0 0 0 0 0 1 0;
-    % 0 0 0 0 0 0 0 1...
+     0 0 0 0 0 0 1 0;
+     0 0 0 0 0 0 0 1 ...
     ]; 
- 
-C_case1 = [...
-     %1 0 0 0 0 0 0 0;
-     %0 1 0 0 0 0 0 0;
-     0 0 1 0 0 0 0 0;
-     0 0 0 1 0 0 0 0;
-    % 0 0 0 0 1 0 0 0;
-    % 0 0 0 0 0 1 0 0;
-     0 0 0 0 0 0 1 0;
-     0 0 0 0 0 0 0 1]; 
- 
-C_case2 = [...
-     1 0 0 0 0 0 0 0;
-     0 1 0 0 0 0 0 0;
-     0 0 1 0 0 0 0 0;
-     0 0 0 1 0 0 0 0;
-    % 0 0 0 0 1 0 0 0;
-    % 0 0 0 0 0 1 0 0;
-     0 0 0 0 0 0 1 0;
-     0 0 0 0 0 0 0 1];
- 
-C_case3 = [...
-     1 0 0 0 0 0 0 0;
-     0 1 0 0 0 0 0 0;
-     0 0 1 0 0 0 0 0;
-     0 0 0 1 0 0 0 0;
-    % 0 0 0 0 1 0 0 0;
-     0 0 0 0 0 1 0 0;
-    % 0 0 0 0 0 0 1 0;
-     0 0 0 0 0 0 0 1]; 
 
-C_case4 = eye(2*n); 
  
 G = [zeros(k, n), F; F, dF];
 N = null(G); R = orth(G'); %E = [N, R];
@@ -96,39 +65,12 @@ GG = svd_suit(GG, tol);
 
 V = GG.null; V = V((2*n+1):end, :);
 
-Ra = orth(V*pinv(V)*R);
-%Rn = orth((eye(2*n) - V*pinv(V))*R);
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-NA = svd_suit(N'*A);
-Re = NA.row_space;
-
-temp = svd_suit( (Re*Re' * V*pinv(V) * R), tol);
-Rae = temp.orth;
-
 temp2 = svd_suit( ( pinv(N'*A)*(N'*A) * V*pinv(V) * R), tol);
-Rae2 = temp2.orth;
+Rae = temp2.orth;
 
-
-our_R = Rae2; C = C_case0; %works
-% our_R = Rae2; C = C_case1; %works
-% our_R = Rae2; C = C_case2; %works
-% our_R = Rae2; C = C_case3; %works
-% our_R = Rae2; C = C_case4; %works
-
-% our_R = Ra; C = C_case0; % doesn't work - observer is not stabilizable
-% our_R = Ra; C = C_case1; % doesn't work - observer is not stabilizable
-% our_R = Ra; C = C_case2; % works
-% our_R = Ra; C = C_case3; % works
-% our_R = Ra; C = C_case4; % works
-
-% our_R = R; C = C_case0; % doesn't work - observer is not stabilizable
-% our_R = R; C = C_case1; % doesn't work - observer is not stabilizable
-% our_R = R; C = C_case2; % doesn't work - observer is not stabilizable
-% our_R = R; C = C_case3; % works
-% our_R = R; C = C_case4; % works
-
+our_R = Rae; C = C_case0;
 
 E = [N, our_R];
 
@@ -144,7 +86,7 @@ x = radius*[0;0;randn;randn; 0;0;0;0];
 z    = N'*x; 
 zeta = our_R'*x; 
 xi_est = radius*randn(nn, 1); 
-Y0   = [z; xi_est]; 
+%Y0   = [z; xi_est]; 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% desired
@@ -202,125 +144,123 @@ B1 = N1'*B;
 % B1 = [N'*B; 
 %       zeros(nn_2, m)];
 
-L = lqr(A1', E'*C', 100*eye(nn), eye(mm));
+L = lqr(A1', E'*C', 100*eye(nn), diag([100, 0.01, 1]));
 L = L';
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% PLTI in z-xi coordinates
-
-CL_PLTI = [N'*A*N,   -N'*B*K;
-           L*C*N,     (A1 - B1*K - L*C*E)];
-      
-CL_PLTI_g = [N'*A*our_R*zeta + N' *B*Kz*z_des + N' *B*u_des + N' *g;
-             L*C*our_R*zeta  + N1'*B*Kz*z_des + N1'*B*u_des + N1'*g];
-                 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% LTI in x-xi coordinates
-FF = R;
-M = [eye(2*n),       zeros(2*n, nn),   -FF;
-     zeros(nn, 2*n), eye(nn, nn),       zeros(nn, 2*k);
-     G,              zeros(2*k, nn),    zeros(2*k, 2*k)];
-iM = pinv(M);
-iM11 = iM(1:(2*n+nn), 1:(2*n+nn));
-
-CL_LTI_0 = [A,   -B*K;
-            L*C, (A1 - B1*K - L*C*E)];
-      
-CL_LTI = iM11*CL_LTI_0; 
-% [sort(real(eig(CL_LTI_v1)), 'descend'), sort(real(eig(CL_LTI_v2)), 'descend')]
-
-CL_LTI_g0 = [    B*Kz*z_des +     B*u_des +     g;
-             N1'*B*Kz*z_des + N1'*B*u_des + N1'*g];
-CL_LTI_g = iM11*CL_LTI_g0; 
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Time = 5;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+data = readtable('data_static.csv');
+
+data_time = data.Var1;
+data_phi2 = data.Var3;
+data_w1   = data.Var10;
+data_w2   = data.Var5;
+dataU     = data.Var7;
+
+dataY = [data_phi2, data_w1, data_w2];
+
+max_time = max(data_time);
+
+current_time = get_current_time(data_time);
+current_y = get_current_y(data_time, dataY);
+current_u = get_current_u(data_time, dataU);
+
+data_IMU = [data.Var9, data.Var10];
+data_obs = [data.Var11, data.Var12, data.Var13, data.Var14];
+data_state_mesurements = [data.Var9, data.Var3, data.Var10, data.Var5];
 
 
-g = [N'*A*our_R; L*C*our_R] * zeta;
-ODEFUN = get_fnc(CL_PLTI, CL_PLTI_g);
 
-[TOUT,YOUT] = ode45(ODEFUN,[0 Time], Y0);
 
-z        = YOUT(:, 1:nn_1);
-z_est    = YOUT(:, (1+nn_1):(2*nn_1));
-zeta_est = YOUT(:, (1+2*nn_1):(2*nn_1+nn_2) );
+
+
+Est_dynamics = @(t, xi) L*current_y(t) + (A1 - L*C*E)*xi - B1*current_u(t);
+Y0 = [N'*x, our_    R'*x];
+
+[TOUT,YOUT] = ode45(Est_dynamics,[0 max_time], Y0);
+
+z_est       = YOUT(:, 1:nn_1);
+zeta_est    = YOUT(:, (nn_1+1):(nn_1+nn_2));
 x_est = (N*z_est' + our_R*zeta_est')';
 
 figure('Color', 'w')
 subplot(2, 2, 1)
-plot(TOUT, z, 'LineWidth', 1.5); hold on; title('z');
-plot([TOUT(1); TOUT(end)], [z_des'; z_des'], '--', 'LineWidth', 0.8);
-
+plot(TOUT, z_est, 'LineWidth', 1.5); hold on; title('z est');
 subplot(2, 2, 2)
-plot(TOUT, z_est); title('z est')
-subplot(2, 2, 3)
 if ~isempty(zeta_est)
-    plot(TOUT,zeta_est); title('zeta est')
+plot(TOUT, zeta_est, 'LineWidth', 1.5); hold on; title('zeta est');
 end
-
-subplot(2, 2, 4)
-
+subplot(2, 2, 3)
 plot(TOUT, x_est, 'LineWidth', 1.5); hold on; title('x est');
-plot([TOUT(1); TOUT(end)], [x_des'; x_des'], '--', 'LineWidth', 0.8);
+drawnow
 
-
-drawnow;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-ODEFUN_CLTI = get_fnc_dynamics(CL_LTI, CL_LTI_g);
-Y0 = [x; xi_est]; 
-
-[TOUT, YOUT] = ode45(ODEFUN_CLTI,[0 Time], Y0);
-
-x        = YOUT(:, 1:(2*n));
-z_est    = YOUT(:, (1+2*n):(2*n+nn_1));
-zeta_est = YOUT(:, (1+2*n+nn_1):(2*n+nn_1+nn_2) );
-z_calc = (N'*x')';
 
 figure('Color', 'w')
-subplot(3, 2, 1)
-plot(TOUT, x, 'LineWidth', 1.5); hold on; title('x');
-plot([TOUT(1); TOUT(end)], [x_des'; x_des'], '--', 'LineWidth', 0.8);
-
-subplot(3, 2, 2)
-plot(TOUT, z_est); title('z est')
-subplot(3, 2, 3)
-
-if ~isempty(zeta_est)
-    plot(TOUT, zeta_est); title('zeta est')
-end
-
-subplot(3, 2, 4)
-plot(TOUT, z_calc); hold on; title('z calc')
-plot([TOUT(1); TOUT(end)], [z_des'; z_des'], '--', 'LineWidth', 0.8);
-subplot(3, 2, 5)
-plot(TOUT, z-z_calc); title('z-z calc')
-
-drawnow;
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 3:4), 'LineWidth', 1.5); hold on; title('q1, q2 est');
+subplot(2, 2, 2)
+plot(data_time, data_state_mesurements(:, 1:2), 'LineWidth', 1.5); hold on; title('q1, q2 inac mes');
+subplot(2, 2, 3)
+plot(data_time, data_obs(:, [1, 2]), 'LineWidth', 1.5); hold on; title('q1, q2 inac obs');
+drawnow
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 7:8), 'LineWidth', 1.5); hold on; title('v1, v2 est');
+subplot(2, 2, 2)
+plot(data_time, data_state_mesurements(:, 3:4), 'LineWidth', 1.5); hold on; title('v1, v2 inac mes');
+subplot(2, 2, 3)
+plot(data_time, data_obs(:, [3, 4]), 'LineWidth', 1.5); hold on; title('v1, v2 inac obs');
+drawnow
 
 
-function fnc = get_fnc(CL_PLTI, CL_PLTI_g)
+figure('Color', 'w')
+subplot(2, 2, 1)
+plot(TOUT, x_est(:, 3), 'LineWidth', 1.5); 
+hold on; title('q1');
+plot(data_time, data_obs(:, 1), '--', 'LineWidth', 1.5);
+legend('est', 'obs')
+drawnow
 
-    fnc = @my_fnc;
-    function dy = my_fnc(~, y)
-        dy = CL_PLTI * y + CL_PLTI_g;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function current_time = get_current_time(data_time)
+current_time = @ct;
+    function time = ct(t)
+        [~, index] = min(abs(data_time - t));
+        time = data_time(index);
     end
-
 end
-
-function fnc = get_fnc_dynamics(CL_LTI, CL_LTI_g)
-
-    fnc = @my_fnc;
-    function dy = my_fnc(~, y)
-        dy = CL_LTI * y + CL_LTI_g;
+function current_y = get_current_y(data_time, dataY)
+current_y = @cy;
+    function Y = cy(t)
+        [~, index] = min(abs(data_time - t));
+        Y = reshape(dataY(index, :), [], 1);
     end
-
 end
-
+function current_u = get_current_u(data_time, dataU)
+current_u = @cu;
+    function U = cu(t)
+        [~, index] = min(abs(data_time - t));
+        U = dataU(index, :);
+    end
+end

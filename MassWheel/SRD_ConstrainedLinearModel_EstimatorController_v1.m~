@@ -61,16 +61,24 @@ for i = 1:Count
 
     V = GG.null; V = V((2*n+1):end, :);
 
-    temp = svd_suit( ( pinv(N'*A)*(N'*A) * V*pinv(V) * R), tol);
-    R_ = temp.orth;
+    R_ES = svd_suit( ( pinv(N'*A)*(N'*A) * V*pinv(V) * R), tol);
+    R_ES = R_ES.orth;
     
+    E = [N, R_ES];
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
+    nn_1 = size(N,  2);
+    nn_2 = size(R_ES, 2);
+    nn = nn_1+nn_2;
+    mm = size(C, 1);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    F = Parser.Results.Handler_Constraints_Model.get_Jacobian(q);
-    dFdq = Parser.Results.Handler_Constraints_Model.get_Jacobian_derivative(q, v);
-    
-    G = [zeros(k, n/2), F; F, dFdq];
-    N = null(G);
+    desired.map.z = [eye(nn_1),   zeros(nn_1, m)];
+    desired.map.u = [zeros(m, nn_1), eye(m)];
+    desired.z_particular = desired.map.z * desired.M.pinv * N'*g;
+    desired.Projector = (desired.map.z*desired.N) * pinv(desired.map.z*desired.N);
+    desired.z_desired = desired.z_particular + desired.Projector * (desired.z_desired_0 - desired.z_particular);
+
     
     G_table(:, :, i) = G;
     N_table(:, :, i) = N;

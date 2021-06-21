@@ -1,3 +1,4 @@
+
 close all; clear; %clear classes;
 clc; 
 
@@ -92,3 +93,123 @@ SRD_save(Handler_Constraints_Model, 'Handler_Constraints_Model');
 
 
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+tol = 10^(-5);
+
+% [0, 0, phi_1, phi_2]
+q = [0; 0; pi/6; 0];
+v = zeros(size(q));
+x = [q; v];
+u = 0;
+
+Handler_dynamics_generalized_coordinates_model = SRD_get('Handler_dynamics_generalized_coordinates_model');
+Handler_dynamics_Linearized_Model              = SRD_get('Handler_dynamics_Linearized_Model');
+Handler_Constraints_Model                      = SRD_get('Handler_Constraints_Model');
+
+
+k = Handler_Constraints_Model.dof_Constraint;
+n = Handler_dynamics_generalized_coordinates_model.dof_configuration_space_robot;
+m = Handler_dynamics_generalized_coordinates_model.dof_control;
+
+H = Handler_dynamics_generalized_coordinates_model.get_joint_space_inertia_matrix(q);
+c = Handler_dynamics_generalized_coordinates_model.get_bias_vector(q, v);
+T = [0;0;0;1];
+iH = pinv(H);
+f0 = [v; iH*(T*u - c)];
+
+A = Handler_dynamics_Linearized_Model.get_A(q, v, u, iH);
+B = Handler_dynamics_Linearized_Model.get_B(q, v,    iH);
+
+F  = Handler_Constraints_Model.get_Jacobian(q);
+dF = Handler_Constraints_Model.get_Jacobian_derivative(q);
+G = [zeros(k, n), F; F, dF];
+N = null(G); R = orth(G'); %E = [N, R];
+
+A
+N'*A*N
+
+get_a = getgetter(Handler_dynamics_generalized_coordinates_model);
+
+delta = 0.001;
+deltaq = eye(4)*delta;
+
+a  = get_a(q, v, u);
+a1 = get_a(q+deltaq(:, 1), v, u);
+a2 = get_a(q+deltaq(:, 2), v, u);
+a3 = get_a(q+deltaq(:, 3), v, u);
+a4 = get_a(q+deltaq(:, 4), v, u);
+
+a5 = get_a(q, v+deltaq(:, 1), u);
+a6 = get_a(q, v+deltaq(:, 2), u);
+a7 = get_a(q, v+deltaq(:, 3), u);
+a8 = get_a(q, v+deltaq(:, 4), u);
+
+AA = ...
+[a - a1, a - a2, a - a3, a - a4, ...
+ a - a5, a - a6, a - a7, a - a8]/delta;
+
+AA = [zeros(4), eye(4); AA]
+N'*AA*N
+
+
+get_ac = getgetter2(Handler_dynamics_generalized_coordinates_model, Handler_Constraints_Model);
+
+a  = get_ac(q, v, u);
+a1 = get_ac(q+deltaq(:, 1), v, u);
+a2 = get_ac(q+deltaq(:, 2), v, u);
+a3 = get_ac(q+deltaq(:, 3), v, u);
+a4 = get_ac(q+deltaq(:, 4), v, u);
+
+a5 = get_ac(q, v+deltaq(:, 1), u);
+a6 = get_ac(q, v+deltaq(:, 2), u);
+a7 = get_ac(q, v+deltaq(:, 3), u);
+a8 = get_ac(q, v+deltaq(:, 4), u);
+
+AA = ...
+[a - a1, a - a2, a - a3, a - a4, ...
+ a - a5, a - a6, a - a7, a - a8]/delta;
+
+AA = [zeros(4), eye(4); AA]
+N'*AA*N
+
+b = get_ac(q, v, u+delta);
+
+BB = ...
+(a - b)/delta;
+BB = [zeros(4, 1); BB]
+
+
+Kz  = lqr(N'*AA*N, N'*BB, eye(4), eye(1))
+eig(N'*AA*N - N'*B*Kz)
+
+function getter = getgetter(Handler_dynamics_generalized_coordinates_model)
+getter = @get_a;
+    function a = get_a(q, v, u)
+        H = Handler_dynamics_generalized_coordinates_model.get_joint_space_inertia_matrix(q);
+        c = Handler_dynamics_generalized_coordinates_model.get_bias_vector(q, v);
+        T = [0;0;0;1];
+        a = pinv(H)*(T*u - c);
+    end
+end
+
+function getter = getgetter2(Handler_dynamics_generalized_coordinates_model, Handler_Constraints_Model)
+getter = @get_a;
+    function a = get_a(q, v, u)
+        H = Handler_dynamics_generalized_coordinates_model.get_joint_space_inertia_matrix(q);
+        c = Handler_dynamics_generalized_coordinates_model.get_bias_vector(q, v);
+        T = [0;0;0;1];
+        F = Handler_Constraints_Model.get_Jacobian(q);
+        dF = Handler_Constraints_Model.get_Jacobian_derivative(q);
+        k = Handler_Constraints_Model.dof_Constraint;
+        n = Handler_dynamics_generalized_coordinates_model.dof_configuration_space_robot;
+        
+        M = [H, -F';
+             F, zeros(k, k)];
+         
+        a = [eye(n), zeros(n, k)] * pinv(M) * [(T*u - c); -dF*v];
+    end
+end
