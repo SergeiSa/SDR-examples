@@ -128,14 +128,14 @@ drawnow;
 [TOUT,YOUT] = ode45(Output.closed_loop.x_xi.ode_fnc, [0 Time], Output.closed_loop.x_xi.Y0);
 
 x        = YOUT(:, 1:Output.sizes.size_x);
-z_est    = YOUT(:, (1+2*dof):(2*dof+nn_1));
-zeta_est = YOUT(:, (1+2*dof+nn_1):(2*dof+nn_1+nn_2) );
-z_calc = (N'*x')';
+z_est    = YOUT(:, (1+Output.sizes.size_x):(Output.sizes.size_x+Output.sizes.size_z));
+zeta_est = YOUT(:, (1+Output.sizes.size_x+Output.sizes.size_z):(Output.sizes.size_x+Output.sizes.size_z+Output.sizes.size_zeta) );
+z_calc = (Output.Matrices.N'*x')';
 
 figure('Color', 'w')
 subplot(3, 2, 1)
 plot(TOUT, x, 'LineWidth', 1.5); hold on; title('x');
-plot([TOUT(1); TOUT(end)], [x_des'; x_des'], '--', 'LineWidth', 0.8);
+plot([TOUT(1); TOUT(end)], [Output.desired.x_corrected'; Output.desired.x_corrected'], '--', 'LineWidth', 0.8);
 
 subplot(3, 2, 2)
 plot(TOUT, z_est); title('z est')
@@ -147,7 +147,7 @@ end
 
 subplot(3, 2, 4)
 plot(TOUT, z_calc); hold on; title('z calc')
-plot([TOUT(1); TOUT(end)], [z_des'; z_des'], '--', 'LineWidth', 0.8);
+plot([TOUT(1); TOUT(end)], [Output.desired.z_corrected'; Output.desired.z_corrected'], '--', 'LineWidth', 0.8);
 subplot(3, 2, 5)
 plot(TOUT, z-z_calc); title('z-z calc')
 

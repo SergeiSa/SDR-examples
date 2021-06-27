@@ -59,10 +59,8 @@ Kzeta = pinv(N'*B) * N'*A*R_used;
 K = [Kz, Kzeta];
 
 N1 = [N, zeros(size_x, size_zeta)];
-A1 = N1'*A*E;
-B1 = N1'*B;
 
-L = lqr(A1', E'*C', ObserverCost.Q, ObserverCost.R);
+L = lqr((N1'*A*E)', E'*C', ObserverCost.Q, ObserverCost.R);
 L = L';
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -110,10 +108,10 @@ desired.x_corrected    = x_des;
 desired.u_corrected    = u_des;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%% PLTI in z-xi coordinates
+%%% Projected LTI in z-xi coordinates
 
 closed_loop.z_xi.Matrix = [N'*A*N,   -N'*B*K;
-                           L*C*N,     (A1 - B1*K - L*C*E)];
+                           L*C*N,     (N1'*A*E - N1'*B*K - L*C*E)];
       
 closed_loop.z_xi.Vector = [N'*A*R_used*zeta + N' *B*Kz*z_des + N' *B*u_des + N' *g;
                            L*C*R_used*zeta  + N1'*B*Kz*z_des + N1'*B*u_des + N1'*g];
@@ -132,7 +130,7 @@ iM = pinv(closed_loop.x_xi.M);
 iM11 = iM(1:(size_x+size_xi), 1:(size_x+size_xi));
 
 closed_loop.x_xi.Matrix = iM11*[A,     -B*K;
-                                L*C,    (A1 - B1*K - L*C*E)];
+                                L*C,    (N1'*A*E - N1'*B*K - L*C*E)];
       
 
 closed_loop.x_xi.Vector = iM11*[    B*Kz*z_des + B*u_des     + g;
@@ -149,9 +147,9 @@ Output.sizes = struct('size_x', size_x, 'size_u', size_u, 'size_y', size_y, 'siz
 Output.InitialConditions = InitialConditions;
 Output.desired = desired;
 Output.closed_loop = closed_loop;
-Output.Matrices = struct('N', N, 'R', R, 'R_used', R_used, 'E', E, ...
+Output.Matrices = struct('G', G, 'N', N, 'R', R, 'R_used', R_used, 'E', E, ...
     'Kz', Kz, 'Kzeta', Kzeta, 'K', K, 'L', L, ...
-    'A1', A1, 'B1', B1, 'N1', N1);
+    'N1', N1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

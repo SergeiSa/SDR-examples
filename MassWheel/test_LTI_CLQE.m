@@ -96,6 +96,40 @@ System = struct('A', A, 'B', B, 'C', C, 'G', G, 'g', g, 'tol', tol, ...
 Output = LTI_CLQE(System);
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% demo of the node-ability critertion 
+N = Output.Matrices.N;
+P = (N'*B) * pinv(N'*B);
+norm( (eye(size(P)) - P) * (N'*A*N*Output.desired.z_corrected + N'*g) )
+norm( (eye(size(P)) - P) * (N'*A*N*Output.desired.z + N'*g) )
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% proof that constraint Jacobian does not matter
+size_x = Output.sizes.size_x;
+size_xi = Output.sizes.size_xi;
+size_l = Output.sizes.size_l;
+R = Output.Matrices.R;
+G = Output.Matrices.G;
+
+M =                  [eye(size_x),            zeros(size_x, size_xi),   -R*randn(size(R, 2), size(R, 2));
+                      zeros(size_xi, size_x), eye(size_xi,  size_xi),    zeros(size_xi, size_l);
+                      G.self,                 zeros(size_l, size_xi),    zeros(size_l, size_l)];
+iM = pinv(M);
+iM11 = iM(1:(size_x+size_xi), 1:(size_x+size_xi));
+
+iM = pinv(Output.closed_loop.x_xi.M);
+iM11_v2 = iM(1:(size_x+size_xi), 1:(size_x+size_xi));
+
+iM11_v3 = blkdiag( (eye(size_x) - R*R'), eye(size_xi));
+iM11_v4 = blkdiag( N*N', eye(size_xi));
+iM11_v5 = blkdiag( (eye(size_x) - G.pinv*G.self), eye(size_xi));
+
+%[diag(iM11), diag(iM11_v2), diag(iM11_v3)]
+[norm(iM11 - iM11_v2), norm(iM11 - iM11_v3), norm(iM11 - iM11_v4), norm(iM11 - iM11_v5)]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 Time = 15;
 [TOUT,YOUT] = ode45(Output.closed_loop.z_xi.ode_fnc, [0 Time], Output.closed_loop.z_xi.Y0);
 
